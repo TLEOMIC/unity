@@ -5,7 +5,12 @@
         _MainTex ("贴图1", 2D) = "white" {}
         _ShadeMainTex ("阴影贴图1", 2D) = "white" {}
         _BeiShu ("贴图倍数1", Range(0, 10000)) = 1
-        [Enum(Close,0,Open,1)] _BeiShuSwitch ("贴图倍数1@粒子控制(z)", Int) = 0
+        [Enum(Close,0,Open,1,Time,2)] _BeiShuSwitch ("贴图倍数1@控制模式(粒子z)", Int) = 0
+        _TimeBeiShu1 ("贴图时间控制min倍数1", Range(0, 10000)) = 1
+        _TimeBeiShu2 ("贴图时间控制max倍数1", Range(0, 10000)) = 1
+        _TimeSpeed1 ("贴图时间速度1", Range(0,1000)) = 0
+        _TimeSpeed2 ("贴图时间速度2", Range(0,1000)) = 0
+
         _Color ("贴图颜色", Color) = (1,1,1,1)
         _ShadeColor ("Shader贴图颜色", Color) = (0.97, 0.81, 0.86, 1)
 
@@ -140,7 +145,7 @@
             struct appdata
             {
                 float4 vertex : POSITION;
-                float4 color : COLOR;
+                float4 color : COLOR; //这个可以是顶点色
                 float3 normal:NORMAL;
 
                 float4 tangent : TANGENT;
@@ -179,6 +184,10 @@
 
             }; 
 
+            float _TimeBeiShu1;
+            float _TimeBeiShu2;
+            float _TimeSpeed1;
+            float _TimeSpeed2;
 
             sampler2D _MainTex;
             float _BeiShu;
@@ -308,7 +317,7 @@
                 TANGENT_SPACE_ROTATION;
                 o.lightDir = mul(rotation, ObjSpaceLightDir(v.vertex)).xyz;
                 
-                TRANSFER_SHADOW(o);
+                // TRANSFER_SHADOW(o);
 
 
                 return o;
@@ -327,6 +336,9 @@
                 switch(_BeiShuSwitch) {
                     case 1:
                     beishu = i.liZi.z;
+                    break;
+                    case 2:
+                    beishu = lerp(_TimeBeiShu1,_TimeBeiShu2,(cos((_Time.y%_TimeSpeed1)/_TimeSpeed1*_TimeSpeed2)+1)/2);
                     break;
                     default:
                     beishu = _BeiShu;
@@ -584,7 +596,7 @@
                 }
                 
 
-                //黑色增幅混合
+                // //黑色增幅混合
                 float a2 = int(clamp(i.color.r+i.color.g+i.color.b,0,1) +  0.99999);
                 a = clamp((1-a2) * lerp(beishu,beishu2,rate) /_BlackBeiShu * a  + a2 * a,0,1);
                 

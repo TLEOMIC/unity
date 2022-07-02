@@ -2,11 +2,16 @@
 {
     Properties
     { 
-         _Alpha ("Alpha", Range(0, 1)) = 1
+        _Alpha ("Alpha", Range(0, 1)) = 1
         _MainTex ("贴图1", 2D) = "white" {}
         _ShadeMainTex ("阴影贴图1", 2D) = "white" {}
         _BeiShu ("贴图倍数1", Range(0, 10000)) = 1
-        [Enum(Close,0,Open,1)] _BeiShuSwitch ("贴图倍数1@粒子控制(z)", Int) = 0
+        [Enum(Close,0,Open,1,Time,2)] _BeiShuSwitch ("贴图倍数1@控制模式(粒子z)", Int) = 0
+        _TimeBeiShu1 ("贴图时间控制min倍数1", Range(0, 10000)) = 1
+        _TimeBeiShu2 ("贴图时间控制max倍数1", Range(0, 10000)) = 1
+        _TimeSpeed1 ("贴图时间速度1", Range(0,1000)) = 0
+        _TimeSpeed2 ("贴图时间速度2", Range(0,1000)) = 0
+
         _Color ("贴图颜色", Color) = (1,1,1,1)
         _ShadeColor ("Shader贴图颜色", Color) = (0.97, 0.81, 0.86, 1)
         [Enum(no,0,yes,1)] _WorldRefSwitch  ("世界反射", Int) = 0
@@ -103,6 +108,8 @@
         [Enum(no,0,yes,1,MTOON,2)] _NeedLightSwitch  ("与光照交互", Int) = 0
         _LightBeiShu ("光照倍数", Range(0, 10000)) = 1
 
+        [Enum(Close,0,toZero,1)] _DDSTYPE ("顶点色变1", Int) = 0
+
 
         
 
@@ -154,7 +161,7 @@
             struct appdata
             {
                 float4 vertex : POSITION;
-                float4 color : COLOR;
+                float4 color : COLOR;  //这个可以是顶点色
                 float3 normal:NORMAL;
 
                 float4 tangent : TANGENT;
@@ -193,7 +200,10 @@
 
 
             }; 
-
+            float _TimeBeiShu1;
+            float _TimeBeiShu2;
+            float _TimeSpeed1;
+            float _TimeSpeed2;
 
             sampler2D _MainTex;
             float _BeiShu;
@@ -239,6 +249,7 @@
             float _BeiShu2Switch;
             float _BlackBeiShu;
             float _LightBeiShu;
+            float _DDSTYPE;
 
 
             sampler2D _Burn_2_Map;
@@ -287,7 +298,14 @@
                 v2f o;
                 o.vertex = UnityObjectToClipPos(v.vertex);
 
-                o.color = v.color;
+                switch(_DDSTYPE){
+                    case 1:
+                    o.color = 1;
+                    break;
+                    default:
+                    o.color = v.color;
+                    break;
+                }
 
                 o.worldPos = mul(unity_ObjectToWorld, v.vertex).xyz;
                 o.worldNormal = UnityObjectToWorldNormal(v.normal);
@@ -341,7 +359,7 @@
                 // 世界空间反射矢量
                 o.worldReflection = reflect(-worldViewDir, worldNormal);
 
-                TRANSFER_SHADOW(o);
+                // TRANSFER_SHADOW(o);
 
 
                 return o;
@@ -360,6 +378,9 @@
                 switch(_BeiShuSwitch) {
                     case 1:
                     beishu = i.liZi.z;
+                    break;
+                    case 2:
+                    beishu = lerp(_TimeBeiShu1,_TimeBeiShu2,(cos((_Time.y%_TimeSpeed1)/_TimeSpeed1*_TimeSpeed2)+1)/2);
                     break;
                     default:
                     beishu = _BeiShu;
@@ -392,6 +413,7 @@
                     burnAmount2 = i.RandomLizi.x;
                     burnAmount3 = i.RandomLizi.y;
                     break;
+
                     default:
                     burnAmount2 = _Burn_1_Amount2;
                     burnAmount3 = _Burn_1_Amount3;
@@ -650,9 +672,9 @@
 
                     half3 indirectLighting = lerp(toonedGI, ShadeSH9(half4(worldNormal, 1)), _IndirectLightIntensity);
                     indirectLighting = lerp(indirectLighting, max(EPS_COL, max(indirectLighting.x, max(indirectLighting.y, indirectLighting.z))), _LightColorAttenuation); // color atten
-                    ambient += indirectLighting * lit;
+                    ambient += indirectLighting * lit * beishu;
                     
-                    ambient = min(ambient, lit); // comment out if you want to PBR absolutely.
+                    ambient = min(ambient, lit * beishu); // comment out if you want to PBR absolutely.
 
 
                     // half3 staticRimLighting = 1;
