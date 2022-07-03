@@ -4,7 +4,7 @@
     { 
         _Alpha ("Alpha", Range(0, 1)) = 1
         _MainTex ("贴图1", 2D) = "white" {}
-        _ShadeMainTex ("阴影贴图1", 2D) = "white" {}
+        _ShadeMainTex ("阴影贴图1(光照yes>高光贴图)", 2D) = "white" {}
         _BeiShu ("贴图倍数1", Range(0, 10000)) = 1
         [Enum(Close,0,Open,1,Time,2)] _BeiShuSwitch ("贴图倍数1@控制模式(粒子z)", Int) = 0
         _TimeBeiShu1 ("贴图时间控制min倍数1", Range(0, 10000)) = 1
@@ -13,18 +13,24 @@
         _TimeSpeed2 ("贴图时间速度2", Range(0,1000)) = 0
 
         _Color ("贴图颜色", Color) = (1,1,1,1)
-        _ShadeColor ("Shader贴图颜色", Color) = (0.97, 0.81, 0.86, 1)
+        _ShadeColor ("Shader贴图颜色(光照yes>高光颜色)", Color) = (0.97, 0.81, 0.86, 1)
         [Enum(no,0,yes,1)] _WorldRefSwitch  ("世界反射", Int) = 0
         [Enum(no,0,yes,1)] _WorldRefUseMapSwitch  ("世界天空盒材质开启", Int) = 0
         _EnvMap("反射天空盒材质",Cube) = "_Skybox"{}
         
 
         _MainTex2 ("贴图2", 2D) = "white" {}
-        _ShadeMainTex2 ("阴影贴图2", 2D) = "white" {}
+        _ShadeMainTex2 ("阴影贴图2(光照yes>高光贴图)", 2D) = "white" {}
         _BeiShu2 ("贴图倍数2", Range(0, 10000)) = 1
-        [Enum(Close,0,Open,1)] _BeiShu2Switch ("贴图倍数2@粒子控制(w)", Int) = 0
+        [Enum(Close,0,Open,1,Time,2)] _BeiShu2Switch ("贴图倍数2@粒子控制(w)", Int) = 0
+
+        _TimeMainTex2BeiShu1 ("贴图时间控制min倍数1", Range(0, 10000)) = 1
+        _TimeMainTex2BeiShu2 ("贴图时间控制max倍数1", Range(0, 10000)) = 1
+        _TimeMainTex2Speed1 ("贴图时间速度1", Range(0,1000)) = 0
+        _TimeMainTex2Speed2 ("贴图时间速度2", Range(0,1000)) = 0
+
         _Color2 ("贴图2颜色", Color) = (1,1,1,1)
-        _ShadeColor2 ("Shader贴图颜色", Color) = (0.97, 0.81, 0.86, 1)
+        _ShadeColor2 ("Shader贴图颜色(光照yes>高光颜色)", Color) = (0.97, 0.81, 0.86, 1)
         [Enum(no,0,yes,1)] _WorldRefSwitch1  ("世界反射", Int) = 0
         [Enum(no,0,yes,1)] _WorldRefUseMapSwitch1  ("世界天空盒材质开启", Int) = 0
         _EnvMap1("反射天空盒材质1",Cube) = "_Skybox"{}
@@ -109,7 +115,7 @@
         _LightBeiShu ("光照倍数", Range(0, 10000)) = 1
 
         [Enum(Close,0,toZero,1)] _DDSTYPE ("顶点色变1", Int) = 0
-
+        _Gloss ("高光", Range(0, 256)) = 1 
 
         
 
@@ -200,6 +206,12 @@
 
 
             }; 
+
+            float _TimeMainTex2BeiShu1;
+            float _TimeMainTex2BeiShu2;
+            float _TimeMainTex2Speed1;
+            float _TimeMainTex2Speed2;
+
             float _TimeBeiShu1;
             float _TimeBeiShu2;
             float _TimeSpeed1;
@@ -291,6 +303,8 @@
             float _WorldRefUseMapSwitch1;
             samplerCUBE _EnvMap1;
             float _Alpha;
+
+            float _Gloss;
 
 
             v2f vert (appdata v)
@@ -389,6 +403,9 @@
                 switch(_BeiShu2Switch) {
                     case 1:
                     beishu2 = i.liZi.w;
+                    break;
+                    case 2:
+                    beishu2 = lerp(_TimeMainTex2BeiShu1,_TimeMainTex2BeiShu2,(cos((_Time.y%_TimeMainTex2Speed1)/_TimeMainTex2Speed1*_TimeMainTex2Speed2)+1)/2);
                     break;
                     default:
                     beishu2 = _BeiShu2;
@@ -636,7 +653,7 @@
                     break;
                 }
 
-                fixed4 col2 = 0;
+                fixed4 col2;
 
                 switch(_RateAddSwitch) {
                     case 1:
@@ -655,10 +672,19 @@
                 
                 fixed3 diffuse = 0;
                 switch(_NeedLightSwitch){
-                    case 1:                   
+                    case 1:             
+                    fixed3 worldLightDir = normalize(_WorldSpaceLightPos0.xyz);
+                    fixed3 reflectDir = normalize(reflect(-worldLightDir, worldNormal));
+
+                    fixed3 viewDir = normalize(_WorldSpaceCameraPos.xyz - i.worldPos.xyz);
+
+                    fixed3 halfDir = normalize(worldLightDir + viewDir);
+
                     //世界光照
-                    diffuse = _LightColor0.rgb * lerp(mainTexCol * _Color  ,mainTexCol2 * _Color2 ,rate) .rgb * i.color.rgb * max(0, dot(tangentNormal, tangentLightDir));
-                    ambient = ambient + diffuse * shadowAttenuation * _LightBeiShu;
+                    //高光
+                    diffuse = _LightColor0.rgb * lerp(sha * _ShadeColor ,sha2 * _ShadeColor2 ,rate) .rgb * i.color.rgb * pow(max(0, dot(worldNormal, halfDir)),_Gloss);
+
+                    ambient = ambient + diffuse * shadowAttenuation * _LightBeiShu ;
                     break;
                     case 2:
 
@@ -672,9 +698,9 @@
 
                     half3 indirectLighting = lerp(toonedGI, ShadeSH9(half4(worldNormal, 1)), _IndirectLightIntensity);
                     indirectLighting = lerp(indirectLighting, max(EPS_COL, max(indirectLighting.x, max(indirectLighting.y, indirectLighting.z))), _LightColorAttenuation); // color atten
-                    ambient += indirectLighting * lit * beishu;
+                    ambient += indirectLighting * col2;
                     
-                    ambient = min(ambient, lit * beishu); // comment out if you want to PBR absolutely.
+                    ambient = min(ambient, col2); // comment out if you want to PBR absolutely.
 
 
                     // half3 staticRimLighting = 1;
